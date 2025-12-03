@@ -4,8 +4,8 @@ npm run dev
 
 后端启动
 
-cd "e:\python project\Custom-built AI assistant"
-& "E:/python project/Custom-built AI assistant/venv/Scripts/python.exe" "e:/python project/Custom-built AI assistant/app.py"
+cd "E:\python project\Custom-built AI assistant\backend" ; 
+& "E:/python project/Custom-built AI assistant/venv/Scripts/python.exe" app.py
 查找占用 8000 端口的进程 ID打开新的命令行窗口（管理员身份），执行：
 # 查找8000端口对应的进程ID（PID）
 netstat -ano | findstr :8000

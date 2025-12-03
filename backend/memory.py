@@ -1,4 +1,4 @@
-from conversations import get_all_conversations, insert_conversation, search_conversations, get_conversations_by_session
+from conversations import get_all_conversations, insert_conversation, search_conversations, get_conversations_by_session, delete_conversation_by_session
 
 
 class Memory:
@@ -55,6 +55,14 @@ class Memory:
         if not self._loaded:
             self.load()
         return self.conversations
+
+    def delete_conversation(self, session_id: str):
+        """Delete all conversations for a specific session."""
+        deleted_count = delete_conversation_by_session(session_id)
+        # 从缓存中移除该 session
+        if session_id in self.conversations:
+            del self.conversations[session_id]
+        return deleted_count
 
 
 global_memory = Memory()  # Singleton instance of Memory

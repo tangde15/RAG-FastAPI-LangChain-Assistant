@@ -19,6 +19,15 @@ venv/
 ENV/
 .env
 .env.*
+config.env
+
+# Uploads
+uploads/
+backend/uploads/
+backend/files/
+
+# Test files
+test video/
 
 # OS
 .DS_Store

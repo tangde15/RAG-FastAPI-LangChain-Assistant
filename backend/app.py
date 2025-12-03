@@ -7,7 +7,7 @@ from prompt import system_prompt_template
 from string import Template
 from memory import global_memory
 from conversations import insert_conversation, create_conversations
-from knowledgebase import create_knowledgebase
+from knowledgebase import create_knowledgebase, save_file_to_knowledge
 from fastapi import FastAPI, UploadFile, File, HTTPException
 import asyncio
 from fastapi.responses import StreamingResponse
@@ -332,6 +332,93 @@ async def get_conversation_by_session_api(request: SessionIdRequest):
     except Exception as e:
         import traceback
         traceback.print_exc()  # 打印完整的错误堆栈
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/conversations/delete")
+async def delete_conversation_api(request: SessionIdRequest):
+    """删除指定 session_id 的所有对话记录"""
+    try:
+        deleted_count = global_memory.delete_conversation(request.session_id)
+        
+        return {
+            "success": True,
+            "session_id": request.session_id,
+            "deleted_count": deleted_count,
+            "message": f"成功删除 {deleted_count} 条对话记录"
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/knowledge/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """
+    上传文件到知识库
+    支持的文件类型: pdf, docx, pptx, txt, md
+    文件将被解析、切片并向量化存储到 Milvus
+    文件大小限制: 最大 20MB
+    """
+    from file_parser import is_supported_file
+    
+    # 检查文件类型
+    if not is_supported_file(file.filename):
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型: {file.filename}. 支持的类型: pdf, docx, pptx, txt, md"
+        )
+    
+    # 读取文件内容并检查大小
+    content = await file.read()
+    file_size_mb = len(content) / (1024 * 1024)  # 转换为 MB
+    
+    if file_size_mb > 20:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件过大: {file_size_mb:.2f}MB. 最大允许 20MB"
+        )
+    
+    # 创建上传目录
+    upload_dir = os.path.join(".", "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # 生成唯一文件名（避免重复）
+    import time
+    timestamp = int(time.time() * 1000)
+    safe_filename = f"{timestamp}_{file.filename}"
+    file_path = os.path.join(upload_dir, safe_filename)
+    
+    try:
+        # 保存文件
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        # 解析并存入知识库
+        result = save_file_to_knowledge(file_path)
+        
+        if result["success"]:
+            return {
+                "success": True,
+                "message": result["message"],
+                "file_path": file_path,
+                "file_size_mb": round(file_size_mb, 2),
+                "chunks_count": result["chunks_count"],
+                "ids": result["ids"]
+            }
+        else:
+            # 如果处理失败，删除文件
+            if os.path.exists(file_path):
+                os.unlink(file_path)
+            raise HTTPException(status_code=500, detail=result["message"])
+    except HTTPException:
+        # 重新抛出 HTTP 异常
+        raise
+    except Exception as e:
+        # 确保删除文件
+        if os.path.exists(file_path):
+            os.unlink(file_path)
         raise HTTPException(status_code=500, detail=str(e))
 
 

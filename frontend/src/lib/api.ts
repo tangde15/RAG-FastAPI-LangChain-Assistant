@@ -52,3 +52,7 @@ export async function getConversationBySession(session_id: string) {
   const r = await fetch('/api/conversations/get', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({session_id}) });
   return r.json();
 }
+export async function deleteConversation(session_id: string) {
+  const r = await fetch('/api/conversations/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({session_id}) });
+  return r.json();
+}

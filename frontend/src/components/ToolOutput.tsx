@@ -41,7 +41,20 @@ function decodeUnicodeEscapes(text: any): any {
 const ToolOutput: React.FC<ToolOutputProps> = ({ content, toolName='tool' }) => {
   const [open, setOpen] = useState(false);
   const parsed = tryParse(content);
-  const displayName = MAP[toolName] || toolName;
+  
+  // 优先根据 parsed.source 判断搜索类型
+  let displayName = MAP[toolName] || toolName;
+  let sourceIcon = '🔍';
+  
+  if (parsed && typeof parsed === 'object' && parsed.source) {
+    if (parsed.source === 'knowledge') {
+      displayName = '知识库搜索';
+      sourceIcon = '📚';
+    } else if (parsed.source === 'web') {
+      displayName = '网络搜索';
+      sourceIcon = '🌐';
+    }
+  }
 
   const renderItems = (items: any[]) => {
     return <div className="space-y-3">{items.slice(0,8).map((raw, i) => {
@@ -59,7 +72,7 @@ const ToolOutput: React.FC<ToolOutputProps> = ({ content, toolName='tool' }) => 
           {snippet && <p style={{ fontSize:13, margin:'6px 0 0' }}>{snippet}</p>}
           {href && (
             <div style={{ marginTop:6 }}>
-              <a href={href} target="_blank" rel="noopener" style={{ color:'#9ad1ff', fontSize:12, textDecoration:'none' }}>https://{domain}</a>
+              <a href={href} target="_blank" rel="noopener" style={{ color:'#9ad1ff', fontSize:12, textDecoration:'underline' }}>{domain || href}</a>
             </div>
           )}
         </div>
@@ -83,6 +96,7 @@ const ToolOutput: React.FC<ToolOutputProps> = ({ content, toolName='tool' }) => 
   return <div className="my-2">
     <button onClick={()=>setOpen(!open)} className="flex items-center gap-2 text-sm text-yellow-300 hover:text-yellow-200">
       <span style={{display:'inline-block',transform: open? 'rotate(90deg)':'rotate(0deg)',transition:'transform .15s'}}>▶</span>
+      <span style={{ fontSize: 16, marginRight: 4 }}>{sourceIcon}</span>
       <span className="font-semibold">{displayName}结果</span>
       <span className="text-xs text-gray-400">{open? '点击收起':'点击展开'}</span>
     </button>

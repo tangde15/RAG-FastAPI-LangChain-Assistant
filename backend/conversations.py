@@ -238,5 +238,38 @@ def get_conversations_by_session(session_id: str):
     return sorted_conversations
 
 
+def delete_conversation_by_session(session_id: str):
+    """
+    删除指定会话的所有对话记录
+    
+    Args:
+        session_id: 会话ID
+        
+    Returns:
+        int: 删除的记录数量
+    """
+    # 先查询该 session_id 下的所有记录 ID
+    res = milvus_client.query(
+        collection_name="conversations",
+        filter=f'session_id == "{session_id}"',
+        output_fields=["id"],
+    )
+    
+    if not res:
+        return 0
+    
+    # 提取所有 ID
+    ids = [item['id'] for item in res]
+    
+    # 批量删除
+    milvus_client.delete(
+        collection_name="conversations",
+        ids=ids
+    )
+    
+    print(f"Deleted {len(ids)} conversations for session {session_id}")
+    return len(ids)
+
+
 
 

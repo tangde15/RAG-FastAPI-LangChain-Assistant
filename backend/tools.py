@@ -238,38 +238,41 @@ def search_internet(query: str, num: int = 5, with_snippets: bool = True, force_
 
 @tool("search_knowledge_base")
 def search_knowledge_base(query: str) -> str:
-    """知识库搜索，直接返回 search_knowledge 的结果字符串。"""
+    """知识库搜索，返回统一的 {source: 'knowledge', items: [...]} 格式。"""
     try:
         results = search_knowledge(query, top_k=5)
-        return json.dumps({"source": "knowledge", "items": results}, ensure_ascii=False, default=str)
+        # 转换为统一格式，让前端能正常渲染
+        items = []
+        for r in results:
+            if isinstance(r, dict):
+                items.append({
+                    'title': r.get('source', '知识库条目'),
+                    'snippet': r.get('content', ''),
+                    'score': r.get('score'),
+                    'id': r.get('id')
+                })
+        return json.dumps({"source": "knowledge", "items": items}, ensure_ascii=False, default=str)
     except Exception as e:
         return json.dumps({"source": "knowledge", "error": str(e), "items": []}, ensure_ascii=False)
 
 
 @tool("smart_search")
-def smart_search(query: str, threshold: float = 0.7) -> str:
-    """优先知识库，若不满足阈值，则调用必应中国搜索，返回统一结构。"""
-    try:
-        kb = search_knowledge(query, top_k=5)
-    except Exception:
-        kb = []
-
-    # 根据是否有分数与阈值来返回 KB 结果
-    try:
-        scores = []
-        for r in kb:
-            s = r.get('score') if isinstance(r, dict) else None
-            if s is not None:
-                try:
-                    scores.append(float(s))
-                except Exception:
-                    pass
-        if kb and (not scores or (max(scores) >= threshold or min(scores) <= (1.0 - threshold))):
-            return json.dumps({"source": "knowledge", "items": kb}, ensure_ascii=False, default=str)
-    except Exception:
-        pass
-
-    # 否则联网搜索（调用增强 DDG 管道）
-    return _search_internet_impl(query, num=5, with_snippets=True, force_chinese=True)
+def smart_search(query: str) -> str:
+    """智能搜索工具：自动路由到知识库或网络搜索。
+    
+    决策由代码控制，而非 LLM 决定：
+    - 相似度 >= 0.7: 使用知识库（高置信度）
+    - 相似度 0.5-0.7: 深度检索后决定
+    - 相似度 < 0.5: 网络搜索（相关度不足）
+    
+    不需要 LLM 判断是否搜索，系统自动决策。
+    """
+    from router import route_search
+    
+    # 使用 Router 自动决策
+    result = route_search(query, score_threshold_low=0.5, score_threshold_high=0.7)
+    
+    # 返回 JSON 字符串
+    return json.dumps(result, ensure_ascii=False, default=str)
 
 

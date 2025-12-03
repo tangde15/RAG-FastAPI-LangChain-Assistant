@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import MarkdownMessage from '../components/MarkdownMessage';
 import ToolOutput from '../components/ToolOutput';
-import { sendChatMessage, getAllConversations, getConversationBySession } from '../lib/api';
+import UploadModal from '../components/UploadModal';
+import { sendChatMessage, getAllConversations, getConversationBySession, deleteConversation } from '../lib/api';
 
 interface Message { type:'user'|'ai'; content:string; timestamp:number; toolCalls?: {toolName:string; toolOutput:string; insertPosition:number}[] }
 interface ConversationItem { session_id:string; user_message:string; ai_message:string; timestamp?: number }
@@ -12,6 +13,7 @@ const Chat: React.FC = () => {
   const [sessionId, setSessionId] = useState<string|null>(null);
   const [allConvs, setAllConvs] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const processingRef = useRef(false);
   const aiBufferRef = useRef('');
   const endRef = useRef<HTMLDivElement|null>(null);
@@ -41,7 +43,28 @@ const Chat: React.FC = () => {
   }
 
   function startNew() {
-    setMessages([]); setSessionId(null); aiBufferRef.current=''; processingRef.current=false; }
+    setMessages([]); setSessionId(null); aiBufferRef.current=''; processingRef.current=false; 
+    // 刷新历史列表，将当前对话加入历史
+    loadAll();
+  }
+
+  async function handleDelete(sid: string, e: React.MouseEvent) {
+    e.stopPropagation(); // 防止触发加载对话
+    if (!confirm('确定要删除这个对话吗？')) return;
+    try {
+      await deleteConversation(sid);
+      // 如果删除的是当前对话，清空界面
+      if (sid === sessionId) {
+        startNew();
+      } else {
+        // 否则只刷新列表
+        loadAll();
+      }
+    } catch(e) {
+      console.error('删除失败:', e);
+      alert('删除失败，请重试');
+    }
+  }
 
   async function handleSend() {
     const q = input.trim();
@@ -91,8 +114,14 @@ const Chat: React.FC = () => {
 
   const uniqueSessions = (()=> {
     const map = new Map<string, ConversationItem>();
+    // 去重：每个 session_id 只保留一条记录
     for (const c of allConvs) if (!map.has(c.session_id)) map.set(c.session_id, c);
-    return Array.from(map.values());
+    // 转换为数组并按时间戳倒序排序（最新的在最上面）
+    return Array.from(map.values()).sort((a, b) => {
+      const timeA = a.timestamp || 0;
+      const timeB = b.timestamp || 0;
+      return timeB - timeA; // 倒序：新的在前
+    });
   })();
 
   return (
@@ -108,15 +137,69 @@ const Chat: React.FC = () => {
           <div style={{display:'flex', flexDirection:'column', gap:8}}>
             {uniqueSessions.map(s=> {
               const active = s.session_id === sessionId;
-              return <button key={s.session_id} onClick={()=>loadSession(s.session_id)} style={{textAlign:'left', padding:'10px 12px', borderRadius:8, background: active? '#334155':'#1e293b', color: active? '#fff':'#cbd5e1', border:'1px solid #334155', cursor:'pointer'}}>
-                <div style={{fontSize:13, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{s.user_message}</div>
-                <div style={{fontSize:11, color:'#64748b', marginTop:4}}>{s.session_id.slice(0,8)}...</div>
-              </button>
+              return <div key={s.session_id} style={{position:'relative'}}>
+                <button 
+                  onClick={()=>loadSession(s.session_id)} 
+                  style={{
+                    width:'100%',
+                    textAlign:'left', 
+                    padding:'10px 12px', 
+                    paddingRight: '36px', // 为删除按钮留出空间
+                    borderRadius:8, 
+                    background: active? '#334155':'#1e293b', 
+                    color: active? '#fff':'#cbd5e1', 
+                    border:'1px solid #334155', 
+                    cursor:'pointer'
+                  }}
+                >
+                  <div style={{fontSize:13, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{s.user_message}</div>
+                  <div style={{fontSize:11, color:'#64748b', marginTop:4}}>{s.session_id.slice(0,8)}...</div>
+                </button>
+                <button
+                  onClick={(e) => handleDelete(s.session_id, e)}
+                  style={{
+                    position:'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    padding: '6px 8px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    lineHeight: 1,
+                    transition: 'color 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
+                  title="删除对话"
+                >
+                  🗑️
+                </button>
+              </div>
             })}
           </div>
         </div>
         <div style={{padding:16, borderTop:'1px solid #334155'}}>
-          <a href="#" style={{display:'block', width:'100%', textAlign:'center', padding:'10px 12px', background:'#334155', color:'#e2e8f0', borderRadius:8, fontSize:13, textDecoration:'none'}}>📤 上传文档</a>
+          <button 
+            onClick={() => setUploadModalOpen(true)}
+            style={{
+              display:'block', 
+              width:'100%', 
+              textAlign:'center', 
+              padding:'10px 12px', 
+              background:'#334155', 
+              color:'#e2e8f0', 
+              border: 'none',
+              borderRadius:8, 
+              fontSize:13, 
+              cursor: 'pointer',
+              textDecoration:'none'
+            }}
+          >
+            📤 上传文档
+          </button>
         </div>
       </div>
       {/* Main */}
@@ -173,6 +256,16 @@ const Chat: React.FC = () => {
           <div style={{textAlign:'center', marginTop:8, fontSize:11, color:'#64748b'}}>AI 可能会产生不准确的信息，请核实重要内容。</div>
         </div>
       </div>
+
+      {/* 上传文档 Modal */}
+      <UploadModal 
+        isOpen={uploadModalOpen} 
+        onClose={() => setUploadModalOpen(false)}
+        onUploadSuccess={() => {
+          // 上传成功后可以刷新对话列表或显示提示
+          loadAll();
+        }}
+      />
     </div>
   );
 };

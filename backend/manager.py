@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 import httpx
 
-# 使用绝对路径加载 .env 文件
-env_path = Path(__file__).parent / "config.env"
+# 使用绝对路径加载配置文件（在项目根目录）
+env_path = Path(__file__).parent.parent / "config.env"
 load_dotenv(env_path, override=True)
 
 # 初始化 embedding 函数 - 通过远程 API 调用
