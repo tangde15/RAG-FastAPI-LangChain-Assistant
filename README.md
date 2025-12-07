@@ -233,15 +233,19 @@ npm install
    cp config.env.example config.env
    ```
 2. 编辑 `config.env`，填写你的 API 密钥和参数（如 DeepSeek、SiliconFlow、Milvus 等）。
-   示例内容：
-   ```
-   SILICONFLO_API_KEY=你的SiliconFlow密钥
-   SILICONFLO_BASE_URL=https://api.siliconflow.cn/v1
-   SILICONFLO_EMBEDDING_MODEL=BAAI/bge-m3
-   MILVUS_HOST=127.0.0.1
-   MILVUS_PORT=19530
-   MILVUS_DATABASE=AI
-   ```
+  示例内容：
+  ```env
+  SILICONFLO_API_KEY=你的SiliconFlow密钥
+  SILICONFLO_BASE_URL=https://api.siliconflow.cn/v1
+  SILICONFLO_EMBEDDING_MODEL=BAAI/bge-m3
+
+  DEEPSEEK_API_KEY=你的DeepSeek密钥
+  DEEPSEEK_BASE_URL=https://api.deepseek.com
+
+  MILVUS_HOST=127.0.0.1
+  MILVUS_PORT=19530
+  MILVUS_DATABASE=AI
+  ```
 
 ### 4. 启动后端服务
 ```bash
