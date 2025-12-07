@@ -130,8 +130,9 @@ static/
 backend/static/
 
 # Scripts
-scripts/
+# 允许追踪特定 scripts 文件，保留其他生成脚本被忽略
 backend/scripts/
+!scripts/hybrid_ppt_extractor.py
 
 # Test outputs
 test.mov
