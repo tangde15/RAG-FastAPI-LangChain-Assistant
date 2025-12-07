@@ -1,49 +1,46 @@
 # Custom-built AI Assistant
 
-本项目为前后端分离的智能助手系统，支持知识库检索与联网搜索，采用 React+Vite 前端与 FastAPI/LangChain 后端。**easyRAG 目录及其内容已不再参与主流程，可直接删除。**
+本项目为前后端分离的智能助手系统，支持知识库检索与联网搜索，采用 React+Vite 前端与 FastAPI/LangChain 后端。
 
 ## 目录结构（核心部分）
 
 ```
-├── config.env              # 环境变量配置
+├── config.env.example      # 环境变量示例（复制并编辑为 config.env）
 ├── README.md               # 项目文档
+├── CHANGELOG.md            # 变更日志
+├── DEPLOYMENT.md           # 部署说明
+├── docker-compose.yml      # 可选容器化部署
+├── deploy.sh               # 本地/服务器启动脚本
 ├── backend/                # FastAPI 后端
-│   ├── agent.py           # LangGraph Agent 核心逻辑
-│   ├── app.py             # FastAPI 应用入口（含流式接口+上传）
-│   ├── file_parser.py     # 文件解析模块（PDF/DOCX/PPTX/TXT/MD）
-│   ├── knowledgebase.py   # Milvus 向量检索（批量插入+查询）
-│   ├── memory.py          # 多轮对话记忆管理
-│   ├── prompt.py          # Prompt 模板
-│   ├── tools.py           # 工具集（search_knowledge/search_internet）
-│   ├── conversations.py   # 对话历史存储
-│   └── requirements.txt   # Python 依赖
-├── frontend/               # React+Vite+TS 前端
+│   ├── app.py              # FastAPI 应用入口（含流式接口+上传）
+│   ├── manager.py          # 初始化模型、Milvus 客户端与 embedding 封装
+│   ├── file_parser.py      # 文件解析模块（PDF/DOCX/PPTX/TXT/MD）
+│   ├── knowledgebase.py    # Milvus 向量检索（批量插入+查询）
+│   ├── requirements.txt    # Python 依赖
+│   └── uploads/            # 运行时上传目录（被 .gitignore 忽略）
+├── frontend/               # React + Vite 前端
 │   ├── index.html
-│   ├── package.json
-│   ├── vite.config.ts
 │   └── src/
-│       ├── main.tsx
-│       ├── global.css
-│       ├── pages/Chat.tsx
-│       ├── components/MarkdownMessage.tsx
-│       ├── components/ToolOutput.tsx
-│       └── lib/api.ts
-├── scripts/                # 数据导入等脚本
-└── static/                 # 静态资源
+├── scripts/                # 数据导入脚本（Hybrid extractor 等）
+├── retrieval/              # reranker / 检索相关实现
+├── utils/                  # 辅助工具（context_aware_split 等）
+├── static/                 # 静态资源
+└── 处理日志/               # 调试/运行日志（被 .gitignore 忽略）
 ```
 
-> ⚠️ `easyRAG/` 及其子目录为历史参考实现，当前主流程完全不依赖，可安全删除。
+
 
 ## 主要功能
 
-- ✅ Milvus 向量知识库检索（可选）
-- ✅ 智能判断是否需要联网搜索（DDG+多轮重写+摘要+Rerank）
-- ✅ 流式对话响应，支持工具卡片插入
-- ✅ React+Vite+TS 前端，深色卡片风格
-- ✅ FastAPI/LangChain 后端，接口统一
-- ✅ 文件上传与解析（PDF/DOCX/PPTX/TXT/MD）
-- ✅ 自动文本切片与向量化存储
+- ✅ Milvus 向量知识库检索（可选）与 BGE Embedding 支持（默认 `BAAI/bge-m3`，向量维度 1024）。
+- ✅ Hybrid 文件解析（`unstructured` + `python-pptx` + PaddleOCR）：支持结构化文本、表格、SmartArt，以及图片中文字提取（OCR）。
+- ✅ Embeddings 批量请求与重试：通过 SiliconFlow/OpenAI 兼容 API 批量获取向量，默认分批（可配置）。
+- ✅ 自动文本切片（BGEChunker）：语义级别按句子+token 切片，默认 `chunk_size=300`、`overlap=50`，提高 embedding 效果与召回质量。
+- ✅ 联网搜索（DuckDuckGo）+ 多轮重写 + Reranker（BGE reranker）以补充检索结果。
+- ✅ 流式对话响应（FastAPI + LangChain），前端使用 React+Vite，支持工具卡片与文件上传。
+- ✅ 运维友好：提供 Docker Compose、部署脚本与变更日志，支持快速复现与调试。
 
+详细实现与配置请参见各子目录（`backend/`、`retrieval/`、`scripts/`）。
 
 ## BGE 优化点
 
@@ -83,12 +80,19 @@ pip install -r requirements.txt
 ```
 
 **主要依赖**：
-- FastAPI 0.115.0 + Uvicorn 0.30.1
-- LangChain 0.3.10 + LangGraph
-- pymilvus 2.5.1
-- FlagEmbedding 1.3.3（BAAI/bge-m3 向量模型）
-- pdfplumber 0.11.4、python-docx 1.1.2、python-pptx 1.0.2（文件解析）
-- requests 2.32.3 + beautifulsoup4 4.12.3（联网搜索）
+**主要依赖（项目当前环境）**：
+- FastAPI `0.121.1` + Uvicorn `0.38.0`
+- LangChain `1.0.3` + LangGraph `1.0.3`
+- pymilvus `2.6.2`
+- FlagEmbedding `1.2.10`（BAAI/bge-m3 向量模型）
+- pdfplumber `0.11.8`、python-docx `1.2.0`、python-pptx `1.0.2`（文件解析）
+- requests `2.32.5` + beautifulsoup4 `4.14.3`（联网搜索）
+- paddleocr `3.3.0`, paddlepaddle `3.2.2`, paddlex `3.3.10`
+- opencv-python `4.12.0.88`, numpy `2.2.6`
+
+注意：依赖会随项目迭代更新，实际安装环境以 `backend/requirements.txt` 为准。
+
+推荐 Python 版本：**3.10 或 3.11**（部分二进制包如 PyMuPDF、paddleocr 对 Python 3.12/3.13 的支持有限，使用 3.10/3.11 可获得更好兼容性，本项目使用Python 3.12,需要修改部分依赖源码）。
 
 ### 前端
 ```bash
@@ -266,8 +270,7 @@ npm run dev
 ---
 
 ## 🆕 近期优化与重要变更
-
-- **依赖冲突修复**：已移除 `peft`，`reranker` 改为使用 transformers 原生实现，避免 peft / sentence-transformers / transformers 等包之间的版本冲突。
+- **依赖兼容性**：已解决多项依赖冲突并改进安装说明；请以 `backend/requirements.txt` 为准进行环境复现（部分可选组件如 `peft` 可能仍在 requirements 中，按需启用）。
 - **检索与精排升级**：检索流程调整为 Milvus topk=200 → reranker 精排 topk=50 → 最终返回 5 条，提升召回与排序质量。
 - **BGE 语义切片**：采用 BGEChunker 按句子+token（默认 chunk_size=300, overlap=50）进行语义切片，提高向量化与检索效果。
 - **PPT / PDF 图片 OCR 优化**：新增 Hybrid-PPT-Extractor（`unstructured` + `python-pptx` + PaddleOCR），修复图片文字“被跳过”问题：
