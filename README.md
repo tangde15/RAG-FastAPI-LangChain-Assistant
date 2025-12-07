@@ -59,13 +59,16 @@
 
 ## 配置说明
 
-编辑 `config.env` 文件：
+编辑 `config.env` 文件（请根据实际密钥替换占位符）：
 
 ```env
-SILICONFLO_API_KEY=your_api_key
-SILICONFLO_MODEL=deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+SILICONFLO_API_KEY=your_siliconflo_api_key
 SILICONFLO_BASE_URL=https://api.siliconflow.cn/v1
 SILICONFLO_EMBEDDING_MODEL=BAAI/bge-m3
+
+DEEPSEEK_API_KEY=your_deepseek_api_key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+
 MILVUS_HOST=127.0.0.1
 MILVUS_PORT=19530
 MILVUS_DATABASE=AI
