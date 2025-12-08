@@ -27,8 +27,17 @@ def get_ocr():
     if _ocr_instance is None:
         with _ocr_lock:
             if _ocr_instance is None:   # 双重检查，线程安全
-                print("[OCR] 初始化 PaddleOCR（仅首次）...")
-                _ocr_instance = PaddleOCR(use_angle_cls=True, lang='ch')
+                print("[OCR] 初始化 PaddleOCR（仅首次，增强小字识别）...")
+                _ocr_instance = PaddleOCR(
+                    use_angle_cls=True,  # 文本方向校正
+                    lang='ch',
+                    use_gpu=False,
+                    det_db_thresh=0.2,    # 默认0.3，调低后更敏感
+                    det_db_box_thresh=0.4, # 默认0.5，降低文本框过滤阈值
+                    det_db_unclip_ratio=2.0, # 扩大文本框范围，避免小字被截断
+                    rec_image_shape="3, 48, 320", # 调整识别图像尺寸，适配小字
+                    rec_batch_num=1  # 单批次识别，提升小字识别准确率
+                )
     return _ocr_instance
 # ==================================================================
 
