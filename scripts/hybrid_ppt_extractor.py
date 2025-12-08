@@ -102,23 +102,24 @@ def extract_ocr_images(filepath):
                             print(f"[OCR] 无法准备图片用于 OCR: {e}")
                             continue
 
-                    # 调用 OCR：判断方法签名是否支持 cls 参数（只在 ocr.ocr 可用时尝试）
+                    # 调用 OCR：不传递 cls 参数，使用默认配置
                     result = None
                     try:
+                        print(f"[OCR] 准备调用 OCR，输入类型: {type(call_arg)}")
                         if hasattr(ocr, 'ocr'):
-                            sig = inspect.signature(ocr.ocr)
-                            if 'cls' in sig.parameters:
-                                result = ocr.ocr(call_arg, cls=True)
-                            else:
-                                result = ocr.ocr(call_arg)
+                            # 直接调用，不传 cls 参数
+                            result = ocr.ocr(call_arg)
+                            print(f"[OCR] ocr() 调用成功，返回类型: {type(result)}")
                         elif hasattr(ocr, 'predict'):
-                            sig = inspect.signature(ocr.predict)
-                            if 'cls' in sig.parameters:
-                                result = ocr.predict(call_arg, cls=True)
-                            else:
-                                result = ocr.predict(call_arg)
+                            result = ocr.predict(call_arg)
+                            print(f"[OCR] predict() 调用成功，返回类型: {type(result)}")
                         else:
                             raise AttributeError('OCR 对象无 ocr 或 predict 方法')
+                    except Exception as ocr_call_error:
+                        print(f"[OCR] 调用失败: {ocr_call_error}")
+                        import traceback
+                        traceback.print_exc()
+                        result = None
                     finally:
                         # 清理临时文件（如果有）
                         if temp_path and os.path.exists(temp_path):
