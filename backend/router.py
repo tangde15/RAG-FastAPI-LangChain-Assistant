@@ -44,18 +44,73 @@ def route_search(query: str, score_threshold_low: float = 0.45, score_threshold_
     """
     print(f"\n[Router] 开始路由查询: {query}")
     
-    # 集成 reranker 流程
-    from retrieval.reranker import rerank
-    print(f"[Router] Milvus 粗排检索 (top_k=200)...")
+    # ====== 第一轮：快速检索（top 3）======
+    print(f"[Router] 第一轮检索 (top_k=3)...")
     try:
-        milvus_results = search_knowledge(query, top_k=200)
+        first_results = search_knowledge(query, top_k=3)
     except Exception as e:
         print(f"[Router] 知识库检索失败: {e}，降级到网络搜索")
         return _fallback_to_web_search(query, "知识库检索失败")
 
-    if not milvus_results:
+    if not first_results or len(first_results) == 0:
         print(f"[Router] 知识库无结果，降级到网络搜索")
         return _fallback_to_web_search(query, "知识库无结果")
+
+    # 获取最高相似度分数
+    top_score = first_results[0].get('similarity', 0) if first_results[0].get('similarity') is not None else (1 - first_results[0].get('score', 1))
+    print(f"[Router] 第一轮最高相似度: {top_score:.3f}")
+
+    # ====== 决策分支 ======
+    
+    # 分支1: 低分 → 直接网络搜索
+    if top_score < score_threshold_low:
+        print(f"[Router] 相似度 {top_score:.3f} < {score_threshold_low}（低分），执行网络搜索")
+        return _fallback_to_web_search(query, f"知识库相似度过低 ({top_score:.3f} < {score_threshold_low})")
+    
+    # 分支2: 高分 → 使用 reranker 精排知识库结果
+    if top_score >= score_threshold_high:
+        print(f"[Router] 相似度 {top_score:.3f} >= {score_threshold_high}（高分），使用知识库 + reranker 精排")
+        return _use_knowledge_with_reranker(query, reason=f"知识库高相似度匹配 ({top_score:.3f})")
+    
+    # 分支3: 中分 → 第二轮深度检索
+    print(f"[Router] 相似度 {top_score:.3f} 在模糊区间 [{score_threshold_low}, {score_threshold_high})，执行第二轮深度检索...")
+    try:
+        deep_results = search_knowledge(query, top_k=10)
+    except Exception as e:
+        print(f"[Router] 第二轮检索失败: {e}，降级到网络搜索")
+        return _fallback_to_web_search(query, "第二轮检索失败")
+    
+    if not deep_results or len(deep_results) == 0:
+        print(f"[Router] 第二轮无结果，降级到网络搜索")
+        return _fallback_to_web_search(query, "第二轮检索无结果")
+    
+    deep_top_score = deep_results[0].get('similarity', 0) if deep_results[0].get('similarity') is not None else (1 - deep_results[0].get('score', 1))
+    print(f"[Router] 第二轮最高相似度: {deep_top_score:.3f}")
+    
+    # 第二轮判断
+    if deep_top_score >= score_threshold_deep:
+        print(f"[Router] 第二轮相似度 {deep_top_score:.3f} >= {score_threshold_deep}，使用知识库 + reranker")
+        return _use_knowledge_with_reranker(query, reason=f"第二轮深度检索命中 ({deep_top_score:.3f})")
+    
+    # 第二轮仍然不足 → 网络搜索
+    print(f"[Router] 第二轮相似度 {deep_top_score:.3f} < {score_threshold_deep}，降级到网络搜索")
+    return _fallback_to_web_search(query, f"知识库相似度不足 (二轮: {deep_top_score:.3f} < {score_threshold_deep})")
+
+
+def _use_knowledge_with_reranker(query: str, reason: str):
+    """使用知识库并进行 reranker 精排"""
+    from retrieval.reranker import rerank
+    
+    print(f"[Router] Milvus 粗排检索 (top_k=200)...")
+    try:
+        milvus_results = search_knowledge(query, top_k=200)
+    except Exception as e:
+        print(f"[Router] Milvus 检索失败: {e}，降级到网络搜索")
+        return _fallback_to_web_search(query, "Milvus 检索失败")
+
+    if not milvus_results:
+        print(f"[Router] Milvus 无结果，降级到网络搜索")
+        return _fallback_to_web_search(query, "Milvus 无结果")
 
     # 构造 reranker 输入格式
     docs = []
@@ -76,6 +131,7 @@ def route_search(query: str, score_threshold_low: float = 0.45, score_threshold_
     # 统一返回前5条
     final_docs = reranked[:5]
     print(f"[Router] 返回知识库精排结果 {len(final_docs)} 条")
+    
     # 格式化输出
     items = []
     for d in final_docs:
@@ -85,10 +141,11 @@ def route_search(query: str, score_threshold_low: float = 0.45, score_threshold_
             "score": d["rerank_score"],
             "id": d["id"]
         })
+    
     return {
         "source": "knowledge",
         "items": items,
-        "decision_reason": "Milvus+reranker 精排"
+        "decision_reason": reason
     }
 
 

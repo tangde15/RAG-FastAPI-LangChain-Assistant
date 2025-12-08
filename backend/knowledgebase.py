@@ -142,11 +142,12 @@ def search_knowledge(query: str, top_k: int = 5):
                 if entity and len(entity) > 0:
                     ent = entity[0]
                     ent['score'] = score
+                    ent['similarity'] = score  # Milvus distance 本身就是相似度
                     data.append(ent)
             except Exception as e:
                 print(f"[知识库检索] 获取实体失败: {e}")
                 # 如果查询失败，创建一个最小化的结果
-                data.append({'id': hit_id, 'score': score, 'content': '', 'source': ''})
+                data.append({'id': hit_id, 'score': score, 'similarity': score, 'content': '', 'source': ''})
 
     return data
 
@@ -196,14 +197,14 @@ def insert_knowledge_batch(chunks: List[str], source: str):
     return ids
 
 
-def save_file_to_knowledge(file_path: str, chunk_size: int = 300, overlap: int = 50):
+def save_file_to_knowledge(file_path: str, chunk_size: int = 500, overlap: int = 50):
     """
     将文件内容解析、切片并保存到知识库
     
     Args:
         file_path: 文件路径
-        chunk_size: 每个片段的最大 token 数（默认 300）
-        overlap: 片段之间的重叠 token 数（默认 50）
+        chunk_size: 每个片段的最大字符数（默认 500，强制范围 500-1000）
+        overlap: 片段之间的重叠字符数（默认 50）
     
     Returns:
         dict: {
@@ -267,13 +268,43 @@ def save_file_to_knowledge(file_path: str, chunk_size: int = 300, overlap: int =
         # 智能切片（context_aware_split）
         try:
             from utils.context_aware_split import context_aware_split
+            # 强制限制 chunk_size 在 500-1000 范围内
+            chunk_size = max(500, min(1000, chunk_size))
             chunks = []
             for text in raw_texts:
                 pieces = context_aware_split(text, max_len=chunk_size, overlap=overlap)
                 chunks.extend([p for p in pieces if p.strip()])
         except Exception as e:
-            print(f"[切片] context_aware_split 失败: {e}")
-            chunks = [t for t in raw_texts if t.strip()]
+            print(f"[切片] context_aware_split 失败: {e}，使用简单切片")
+            import traceback
+            traceback.print_exc()
+            # 备用：简单切片（按固定长度）
+            chunk_size = max(500, min(1000, chunk_size))
+            chunks = []
+            for text in raw_texts:
+                if len(text) <= chunk_size:
+                    chunks.append(text)
+                else:
+                    # 按 chunk_size 切片
+                    for i in range(0, len(text), chunk_size - overlap):
+                        chunk = text[i:i + chunk_size]
+                        if chunk.strip():
+                            chunks.append(chunk)
+
+        # 验证并强制切片超长 chunks
+        validated_chunks = []
+        for chunk in chunks:
+            if len(chunk) <= 1000:
+                validated_chunks.append(chunk)
+            else:
+                # 超长 chunk 强制二次切片
+                print(f"[切片] 检测到超长 chunk ({len(chunk)} 字符)，强制切分...")
+                for i in range(0, len(chunk), 900):
+                    sub_chunk = chunk[i:i + 1000]
+                    if sub_chunk.strip():
+                        validated_chunks.append(sub_chunk)
+        chunks = validated_chunks
+        print(f"[切片] 验证完成，所有 chunk 长度均 <= 1000 字符")
 
         if not chunks:
             return {

@@ -117,13 +117,14 @@ class BGEChunker:
     """BGE 语义切片器：基于 BGE tokenizer 的句子级切片"""
     def __init__(self, 
                  model_name="BAAI/bge-base-zh-v1.5",
-                 chunk_size=300,
+                 chunk_size=500,
                  overlap=50):
         print(f"[BGE切片器] 初始化，模型: {model_name}")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.chunk_size = chunk_size
+        # 强制限制 chunk_size 在 500-1000 范围内
+        self.chunk_size = max(500, min(1000, chunk_size))
         self.overlap = overlap
-        print(f"[BGE切片器] chunk_size={chunk_size} tokens, overlap={overlap} tokens")
+        print(f"[BGE切片器] chunk_size={self.chunk_size} 字符, overlap={overlap} 字符")
 
     def split_sentences(self, text):
         """中文断句规则"""
@@ -198,20 +199,20 @@ def get_chunker():
     if _chunker is None:
         _chunker = BGEChunker(
             model_name="BAAI/bge-base-zh-v1.5",
-            chunk_size=300,
+            chunk_size=500,
             overlap=50
         )
     return _chunker
 
 
-def chunk_text(text: str, chunk_size: int = 300, overlap: int = 50) -> List[str]:
+def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
     """
     将长文本切分成多个片段（基于 BGE 语义切片）
     
     Args:
         text: 原始文本
-        chunk_size: 每个片段的最大 token 数（默认 300）
-        overlap: 片段之间的重叠 token 数（默认 50）
+        chunk_size: 每个片段的最大字符数（默认 500，强制范围 500-1000）
+        overlap: 片段之间的重叠字符数（默认 50）
     
     Returns:
         文本片段列表
@@ -219,8 +220,11 @@ def chunk_text(text: str, chunk_size: int = 300, overlap: int = 50) -> List[str]
     if not text or not text.strip():
         return []
     
+    # 强制限制 chunk_size 在 500-1000 范围内
+    chunk_size = max(500, min(1000, chunk_size))
+    
     print(f"[文本切片] 开始语义切片，文本长度: {len(text)} 字符")
-    print(f"[文本切片] chunk_size={chunk_size} tokens, overlap={overlap} tokens")
+    print(f"[文本切片] chunk_size={chunk_size} 字符, overlap={overlap} 字符")
     
     chunker = get_chunker()
     chunks = chunker.chunk(text)

@@ -261,16 +261,19 @@ def smart_search(query: str) -> str:
     """智能搜索工具：自动路由到知识库或网络搜索。
     
     决策由代码控制，而非 LLM 决定：
-    - 相似度 >= 0.7: 使用知识库（高置信度）
-    - 相似度 0.5-0.7: 深度检索后决定
-    - 相似度 < 0.5: 网络搜索（相关度不足）
+    - 相似度 < 0.45: 网络搜索（弱相关）
+    - 相似度 0.45-0.60: 深度检索后决定
+    - 相似度 >= 0.60: 使用知识库（强相关）
     
     不需要 LLM 判断是否搜索，系统自动决策。
     """
     from router import route_search
     
-    # 使用 Router 自动决策
-    result = route_search(query, score_threshold_low=0.5, score_threshold_high=0.7)
+    # 使用 Router 自动决策（使用默认阈值：low=0.45, high=0.60, deep=0.55）
+    result = route_search(query)
+    
+    # 打印决策结果（调试用）
+    print(f"[smart_search] 决策结果: source={result.get('source')}, reason={result.get('decision_reason')}")
     
     # 返回 JSON 字符串
     return json.dumps(result, ensure_ascii=False, default=str)
