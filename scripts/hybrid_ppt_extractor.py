@@ -130,13 +130,16 @@ def extract_ocr_images(filepath):
                     # 解析结果（兼容所有 PaddleOCR 版本的安全写法）
                     # result 格式通常为: [[[box, (text, score)], ...], ...] 或 [[box, (text, score)], ...]
                     if result:
-                        for line in result:
+                        print(f"[OCR] 调试 - result 类型: {type(result)}, 长度: {len(result) if isinstance(result, (list, tuple)) else 'N/A'}")
+                        for idx, line in enumerate(result):
                             if not line:
                                 continue
+                            print(f"[OCR] 调试 - line[{idx}] 类型: {type(line)}, 长度: {len(line) if isinstance(line, (list, tuple)) else 'N/A'}")
                             # line 可能是列表，遍历每个检测项
                             if isinstance(line, list):
-                                for item in line:
+                                for item_idx, item in enumerate(line):
                                     try:
+                                        print(f"[OCR] 调试 - item[{item_idx}] 类型: {type(item)}, 长度: {len(item) if isinstance(item, (list, tuple)) else 'N/A'}")
                                         # item 格式: [box, (text, score)] 或 [box, text, score] 等
                                         if isinstance(item, (list, tuple)) and len(item) >= 2:
                                             # 标准格式: item[1] 是 (text, score)
@@ -145,9 +148,12 @@ def extract_ocr_images(filepath):
                                                 text = text_info[0]
                                                 if text and isinstance(text, str):
                                                     ocr_texts.append(text)
+                                                    print(f"[OCR] 提取文本: {text}")
                                             elif isinstance(text_info, str):
                                                 ocr_texts.append(text_info)
-                                    except Exception:
+                                                print(f"[OCR] 提取文本: {text_info}")
+                                    except Exception as e:
+                                        print(f"[OCR] 解析 item 出错: {e}")
                                         continue
                 except Exception as e:
                     print(f"[OCR] 识别异常: {e}")
