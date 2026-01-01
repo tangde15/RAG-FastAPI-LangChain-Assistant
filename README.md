@@ -1,6 +1,14 @@
 # Custom-built AI Assistant
 
-本项目为前后端分离的智能助手系统，支持知识库检索与联网搜索，采用 React+Vite 前端与 FastAPI/LangChain 后端。
+本项目为一个**前后端分离的智能助手系统**，基于最新的 **RAG+联网搜索+工具体系** 架构。
+系统同时支持：
+
+- **私有知识库检索**（Milvus）
+- **实时联网搜索**（DDG + 重写 + Reranker）
+- **文件上传→解析→OCR→切片→向量化→入库** 的自动化处理流程
+- **流式 AI 对话**（工具卡片 + 多轮上下文 + 动态推理）
+
+前端采用 **React + Vite**，后端采用 **FastAPI + LangChain + FlagEmbedding + Milvus**，整体结构简洁、可扩展，支持本地与云端部署。
 
 ## 目录结构（核心部分）
 
@@ -32,28 +40,66 @@
 
 ## 主要功能
 
-- ✅ Milvus 向量知识库检索（可选）与 BGE Embedding 支持（默认 `BAAI/bge-m3`，向量维度 1024）。
-- ✅ Hybrid 文件解析（`unstructured` + `python-pptx` + PaddleOCR）：支持结构化文本、表格、SmartArt，以及图片中文字提取（OCR）。
-- ✅ Embeddings 批量请求与重试：通过 SiliconFlow/OpenAI 兼容 API 批量获取向量，默认分批（可配置）。
-- ✅ 自动文本切片（BGEChunker）：语义级别按句子+token 切片，默认 `chunk_size=300`、`overlap=50`，提高 embedding 效果与召回质量。
-- ✅ 联网搜索（DuckDuckGo）+ 多轮重写 + Reranker（BGE reranker）以补充检索结果。
-- ✅ 流式对话响应（FastAPI + LangChain），前端使用 React+Vite，支持工具卡片与文件上传。
-- ✅ 运维友好：提供 Docker Compose、部署脚本与变更日志，支持快速复现与调试。
+### 🚀 新版 RAG 管线（2025）
+
+- **文本解析 → 语义切片（按句子+token）→ 向量化（bge-m3）→ Milvus 检索 → Reranker 精排（bge-reranker）**
+- **检索策略**：TopK 200（Milvus）→ TopK 50（rerank）→ 最终 5 条
+- Milvus 向量知识库检索（可选）与 BGE Embedding 支持（默认 `BAAI/bge-m3`，向量维度 1024）
+
+### 📄 文件解析（Hybrid Extraction）
+
+- **结构化文本解析**（PDF/DOCX/PPTX/TXT/MD）
+- **PPT/PDF 图片 OCR**（PaddleOCR）
+- **自动结构提取**（标题层级、表格、段落分段）
+- Hybrid 文件解析（`unstructured` + `python-pptx` + PaddleOCR）：支持结构化文本、表格、SmartArt，以及图片中文字提取（OCR）
+
+### 🧩 智能切片（BGEChunker）
+
+- **Sentence + Token aware 切片**
+- **默认 chunk_size=300, overlap=50**
+- 极大提升向量语义密度
+- 语义级别按句子+token 切片，提高 embedding 效果与召回质量
+
+### 🌐 联网搜索增强
+
+- **DuckDuckGo 联网搜索**
+- **查询多轮重写**（prompt rewrite）
+- **网页摘要提取**
+- **语义 Reranker 排序**
+- 作为知识库 fallback，多轮重写 + Reranker（BGE reranker）以补充检索结果
+
+### 💬 流式对话体验
+
+- **NDJSON 流**
+- **工具调用消息**
+- **Session ID 上下文保持**
+- 流式对话响应（FastAPI + LangChain），前端使用 React+Vite，支持工具卡片与文件上传
+
+### 🛠️ 可维护性 / 运维
+
+- **详细日志**（处理日志目录）
+- **Docker Compose 一键部署**
+- **自动批处理向量化、分批重试、API 限速保护**
+- Embeddings 批量请求与重试：通过 SiliconFlow/OpenAI 兼容 API 批量获取向量，默认分批（可配置）
 
 详细实现与配置请参见各子目录（`backend/`、`retrieval/`、`scripts/`）。
 
-## BGE 优化点
+## BGE 优化说明
 
-本项目在以下核心环节全面采用 BGE（BAAI General Embedding）体系，显著提升中文检索与语义相关性：
+本项目已完全围绕 **BAAI BGE（General Embedding）体系** 深度优化：
 
-- **BGE 语义切片**：
-  - 文件解析后，采用 BGEChunker 按句子+token 级别切片，chunk_size=300，overlap=50，确保每个片段适配 BGE embedding 最优效果。
-- **BGE Embedding 向量化**：
-  - 默认使用 `BAAI/bge-m3`（可配置）作为 embedding 模型，生成高质量语义向量，支持中文多场景。
-- **BGE Reranker 精排**：
-  - 检索召回后，使用 `BAAI/bge-reranker-large` 进行语义精排，提升最终返回结果的相关性和准确率。
-- **配置灵活**：
-  - 相关模型名称、参数均可在 `config.env` 配置，便于自定义和升级。
+- **bge-m3 多功能嵌入模型**（支持 text/sentence/query 三模态）
+- **BGE 语义切片器 BGEChunker**：
+  - 文件解析后，采用 BGEChunker 按句子+token 级别切片，chunk_size=300，overlap=50，确保每个片段适配 BGE embedding 最优效果
+- **bge-reranker-large 精排模型**：
+  - 检索召回后，使用 `BAAI/bge-reranker-large` 进行语义精排，提升最终返回结果的相关性和准确率
+- **所有参数可从 config.env 配置**（embedding、reranker、batch_size、chunk_size）
+
+此外，本项目实现了：
+
+- **向量化分批**（默认 batch_size=16）
+- **API 自动重试**（408/413/429 等错误）
+- **检索 + rerank 双阶段策略**：Milvus topk=200 → reranker 精排 topk=50 → 最终返回 5 条
 
 上述优化已在 `file_parser.py`、`retrieval/reranker.py`、`manager.py` 等核心模块实现，详见代码与文档说明。
 
@@ -277,16 +323,28 @@ npm run dev
 ---
 
 ## 🆕 近期优化与重要变更
-- **依赖兼容性**：已解决多项依赖冲突并改进安装说明；请以 `backend/requirements.txt` 为准进行环境复现（部分可选组件如 `peft` 可能仍在 requirements 中，按需启用）。
-- **检索与精排升级**：检索流程调整为 Milvus topk=200 → reranker 精排 topk=50 → 最终返回 5 条，提升召回与排序质量。
-- **BGE 语义切片**：采用 BGEChunker 按句子+token（默认 chunk_size=300, overlap=50）进行语义切片，提高向量化与检索效果。
-- **PPT / PDF 图片 OCR 优化**：新增 Hybrid-PPT-Extractor（`unstructured` + `python-pptx` + PaddleOCR），修复图片文字“被跳过”问题：
-  - 将 `PIL.Image` 转为 `numpy.ndarray`（BGR）或传入临时文件路径以兼容 PaddleOCR；
-  - 在调用前检查 OCR 方法签名，只有支持 `cls` 参数时才传入，避免 unexpected keyword 错误；
-  - 使用 OCR 单例与线程安全初始化，避免重复初始化导致的内部错误。
-- **向量化稳定性**：embeddings 上传采用分批（默认 batch_size=16，可通过 `SILICONFLO_EMBEDDING_BATCH_SIZE` 环境变量调整）与重试机制，降低单次请求体过大（413）与网络抖动风险。
-- **环境清理与恢复建议**：提供 `pip cache purge`、升级 `pip`、在无 GPU 时可安全执行 `torch.cuda.empty_cache()` 等命令以清理环境与显存。
-- **文档与日志**：已更新 `README.md`、`DEPLOYMENT.md`、`CHANGELOG.md`，并补充 `模型识别不到文件内图片内容.txt` 日志，记录问题定位与修复过程。
+
+如下内容已同步到当前项目状态：
+
+- ✅ **已完成 PaddleOCR 图片忽略问题修复**（PIL→numpy/BGR 转换）
+  - 根据 PaddleOCR 版本自动检测是否支持 `cls` 参数
+  - 新增 Hybrid-PPT-Extractor（`unstructured` + `python-pptx` + PaddleOCR），修复图片文字"被跳过"问题
+  - 将 `PIL.Image` 转为 `numpy.ndarray`（BGR）或传入临时文件路径以兼容 PaddleOCR
+  - 在调用前检查 OCR 方法签名，只有支持 `cls` 参数时才传入，避免 unexpected keyword 错误
+  - 使用 OCR 单例与线程安全初始化，避免重复初始化导致的内部错误
+- ✅ **Parsing Pipeline 升级为 Hybrid Extractor**
+- ✅ **413 Request Entity Too Large**：已加入向量化分批与重试
+  - embeddings 上传采用分批（默认 batch_size=16，可通过 `SILICONFLO_EMBEDDING_BATCH_SIZE` 环境变量调整）与重试机制，降低单次请求体过大（413）与网络抖动风险
+- ✅ **技术栈已适配 Python 3.12**（有 patch，但整体可用）
+- ✅ **LangChain v1.x + LangGraph 规范化升级**
+- ✅ **搜索流程与结果汇总完全重写**（具备摘要生成能力）
+- ✅ **Logging 模块新增"入库失败/解析失败/向量化异常"分类日志**
+- ✅ **依赖冲突已修复，并加入安装顺序提示**
+  - 已解决多项依赖冲突并改进安装说明；请以 `backend/requirements.txt` 为准进行环境复现（部分可选组件如 `peft` 可能仍在 requirements 中，按需启用）
+- ✅ **检索与精排升级**：检索流程调整为 Milvus topk=200 → reranker 精排 topk=50 → 最终返回 5 条，提升召回与排序质量
+- ✅ **BGE 语义切片**：采用 BGEChunker 按句子+token（默认 chunk_size=300, overlap=50）进行语义切片，提高向量化与检索效果
+- ✅ **环境清理与恢复建议**：提供 `pip cache purge`、升级 `pip`、在无 GPU 时可安全执行 `torch.cuda.empty_cache()` 等命令以清理环境与显存
+- ✅ **文档与日志**：已更新 `README.md`、`DEPLOYMENT.md`、`CHANGELOG.md`，并补充 `模型识别不到文件内图片内容.txt` 日志，记录问题定位与修复过程
 
 ---
 如有问题请提 issue 或联系作者。
